@@ -1,4 +1,6 @@
 import torch
+import math
+import torch.nn.init as init
 import torch.nn.functional as F
 from torch import nn
 from transformers import ACT2FN
@@ -7,8 +9,6 @@ from transformers import PreTrainedModel, GenerationMixin, PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.models.blt.modeling_blt import repeat_kv
 from .config import mini_llm_config
-
-
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim:int, eps:float=1e-5):
         super().__init__()
@@ -20,7 +20,7 @@ class RMSNorm(torch.nn.Module):
     def forward(self, x):
         return self.weight*self.norm(x.float()).type_as(x)
 
-def precompute_freqs_cis(dim:int, emd:int=int(32*1024),rope_base:float=1e6):
+def precompute_freqs_cis(dim:int, end:int=int(32*1024),rope_base:float=1e6):
     # 计算频率：θ_i = base^(-2i/d), i ∈ [0, d/2)，生成 dim//2 个频率
     freqs = 1.0 / (rope_base ** (torch.arange(0, dim, 2).float() / dim))
     
@@ -293,7 +293,7 @@ class MINI_LLMModel(nn.Module):
             hidden_states: 最后一层的隐藏状态 (batch, seq_len, hidden_size)
             presents: 新的 KV cache 列表
         """
-        batch_size, seq_len = input_ids.shape
+        batch_size, seq_length = input_ids.shape
 
         if hasattr(past_key_values, 'layers'): 
             past_key_values = None
